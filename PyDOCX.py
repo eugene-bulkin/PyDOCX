@@ -1,5 +1,7 @@
 from xml.dom.minidom import *
 from zipfile import ZipFile
+from datetime import datetime
+
 
 class DOCXException(Exception):
     pass
@@ -57,6 +59,28 @@ class DOCX:
         # add body node
         self.body = self.xml.createElement("w:body")
         self.document.appendChild(self.body)
+        self.properties = {"title": None, "subject": None, "creator": None, "keywords": None, "description": None, "revision": "1"}
+
+    # Helper functions
+    def createElementWithText(self, tagName, text=None):
+        el = self.xml.createElement(tagName)
+        if text is not None:
+            el.appendChild(self.xml.createTextNode(text))
+        return el
+
+    # Properties
+    def setProperty(self, prop, value):
+        if prop not in self.properties.keys():
+            raise DOCXException("%s is not a valid DOCX property" % prop)
+        self.properties[prop] = value
+
+    def getProperty(self, prop):
+        if prop not in self.properties.keys():
+            raise DOCXException("%s is not a valid DOCX property" % prop)
+        # just return keywords as a string
+        if prop == "keywords" and self.properties[prop] is not None:
+            return ", ".join(self.properties[prop])
+        return self.properties[prop]
 
     # Elements
     def paragraph(self, text=None, style=None):
@@ -93,7 +117,7 @@ class DOCX:
                 el.setAttribute("PartName", a2)
             ctxml.documentElement.appendChild(el)
 
-        aux["[Content_Types].xml"] = ctxml.toprettyxml()
+        aux["[Content_Types].xml"] = ctxml
 
         # Relationship files
         rels = parseString('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />')
@@ -108,7 +132,7 @@ class DOCX:
             el.setAttribute("Target", targ)
             el.setAttribute("Type", ty)
             rels.documentElement.appendChild(el)
-        aux["_rels/.rels"] = rels.toprettyxml()
+        aux["_rels/.rels"] = rels
 
         word_rels = parseString('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />')
         word_rels_attrs = (
@@ -124,7 +148,103 @@ class DOCX:
             el.setAttribute("Target", targ)
             el.setAttribute("Type", ty)
             rels.documentElement.appendChild(el)
-        aux["word/_rels/document.xml.rels"] = word_rels.toprettyxml()
+        aux["word/_rels/document.xml.rels"] = word_rels
+
+        # Document properties
+
+        # Core file
+        cur_time = datetime.utcnow().strftime("%Y-%m-%dT%XZ")
+        coxml = Document()
+        corexml = self.xml.createElement("cp:coreProperties")
+        core_attrs = (
+            ("cp", "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"),
+            ("dc", "http://purl.org/dc/elements/1.1/"),
+            ("dcmitype", "http://purl.org/dc/dcmitype/"),
+            ("dcterms", "http://purl.org/dc/terms/"),
+            ("xsi", "http://www.w3.org/2001/XMLSchema-instance")
+        )
+        for name, value in core_attrs:
+            corexml.setAttribute("xmlns:%s" % name, value)
+        # create nodes from properties
+        nodes = (
+            ("dc:title", "title"),
+            ("dc:subject", "subject"),
+            ("dc:creator", "creator"),
+            ("cp:lastModifiedBy", "creator"),
+            ("dc:description", "description"),
+            ("dc:keywords", "keywords"),
+            ("cp:revision", "revision"),
+        )
+        for name, prop in nodes:
+            el = self.createElementWithText(name, self.getProperty(prop))
+            corexml.appendChild(el)
+
+        # created element
+        created = self.createElementWithText("dcterms:created", cur_time)
+        created.setAttribute("xsi:type","dcterms:W3CDTF")
+        corexml.appendChild(created)
+        # modified element
+        modified = self.createElementWithText("dcterms:modified", cur_time)
+        modified.setAttribute("xsi:type","dcterms:W3CDTF")
+        corexml.appendChild(modified)
+
+        coxml.appendChild(corexml)
+
+        aux["docProps/core.xml"] = coxml
+
+        # Apps file
+        appxml = parseString('<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes" />')
+        # create fake info for infoNodes
+        # TODO: Actually calculate this
+        infoNodes = ("TotalTime", "Pages", "Words", "Characters", "Lines", "Paragraphs", "CharactersWithSpaces")
+        for name in infoNodes:
+            el = self.createElementWithText(name, "1")
+            appxml.documentElement.appendChild(el)
+        # Template information, etc.
+        otherNodes = (
+            ("Template", "Normal.dotm"),
+            ("Application", "Microsoft Office Word"),
+            ("DocSecurity", "0"),
+            ("ScaleCrop", "false"),
+            ("Company", None),
+            ("LinksUpToDate", "false"),
+            ("SharedDoc", "false"),
+            ("HyperlinksChanged", "false"),
+            ("AppVersion", "15.0000")
+        )
+        for name, value in otherNodes:
+            el = self.createElementWithText(name, value)
+            appxml.documentElement.appendChild(el)
+        # Nested nodes (HeadingPairs, TitlesOfParts)
+        hp = appxml.createElement("HeadingPairs")
+        hpvec = appxml.createElement("vt:vector")
+        hpvec.setAttribute("baseType", "variant")
+        hpvec.setAttribute("size", "2")
+        var1 = appxml.createElement("vt:variant")
+        var1.appendChild(self.createElementWithText("vt:lpstr", "Title"))
+        hpvec.appendChild(var1)
+        var2 = appxml.createElement("vt:variant")
+        var2.appendChild(self.createElementWithText("vt:i4", "1"))
+        hpvec.appendChild(var2)
+        hp.appendChild(hpvec)
+        tp = appxml.createElement("TitlesOfParts")
+        tpvec = appxml.createElement("vt:vector")
+        tpvec.setAttribute("baseType", "lpstr")
+        tpvec.setAttribute("size", "1")
+        tpvec.appendChild(appxml.createElement("vt:lpstr"))
+        tp.appendChild(tpvec)
+        appxml.documentElement.appendChild(hp)
+        appxml.documentElement.appendChild(tp)
+
+        aux["docProps/app.xml"] = appxml
+
+        # Font Table
+
+        # Settings
+
+        # Styles
+
+        # Web Settings
 
         return aux
 
@@ -133,7 +253,7 @@ class DOCX:
         z = ZipFile(fn, "w")
         # write auxiliary files
         for fn, content in aux.items():
-            z.writestr(fn, content)
+            z.writestr(fn, content.toprettyxml(encoding="UTF-8")[:-1])
         # write document to zip file
         z.writestr("word/document.xml","%s\n%s" % ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',self.document.toprettyxml(encoding="UTF-8")[:-1]))
         z.close()
