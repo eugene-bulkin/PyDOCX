@@ -1,6 +1,9 @@
 from xml.dom.minidom import *
 from zipfile import ZipFile
 
+class DOCXException(Exception):
+    pass
+
 class Style:
     pass
 
