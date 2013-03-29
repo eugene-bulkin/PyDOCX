@@ -61,3 +61,15 @@ class DOCX:
 
     def add(self, element):
         self.body.appendChild(element.toNode())
+
+    def makeAuxFiles(self):
+        aux = {}
+
+        return aux
+
+    def save(self, fn):
+        aux = self.makeAuxFiles()
+        z = ZipFile(fn, "w")
+        # write document to zip file
+        z.writestr("word/document.xml","%s\n%s" % ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',self.document.toprettyxml(encoding="UTF-8")[:-1]))
+        z.close()
