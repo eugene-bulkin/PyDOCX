@@ -173,6 +173,109 @@ def webSettings():
 
     return wxml
 
+def settings():
+    sxml = Document()
+    sett_attrs = {
+        "mc:Ignorable": "w14 w15",
+        "xmlns:m": "http://schemas.openxmlformats.org/officeDocument/2006/math",
+        "xmlns:mc": "http://schemas.openxmlformats.org/markup-compatibility/2006",
+        "xmlns:o": "urn:schemas-microsoft-com:office:office",
+        "xmlns:r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+        "xmlns:sl": "http://schemas.openxmlformats.org/schemaLibrary/2006/main",
+        "xmlns:v": "urn:schemas-microsoft-com:vml",
+        "xmlns:w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+        "xmlns:w10": "urn:schemas-microsoft-com:office:word",
+        "xmlns:w14": "http://schemas.microsoft.com/office/word/2010/wordml",
+        "xmlns:w15": "http://schemas.microsoft.com/office/word/2012/wordml"
+    }
+    settxml = createElementWithProps("w:settings", attrs=sett_attrs)
+
+    settxml.appendChild(createElementWithProps("w:zoom", attrs={"w:percent": "100"}))
+    settxml.appendChild(createElementWithProps("w:proofState", attrs={"w:grammar": "clean", "w:spelling": "clean"}))
+    settxml.appendChild(createElementWithProps("w:defaultTabStop", attrs={"w:val": "720"}))
+    settxml.appendChild(createElementWithProps("w:characterSpacingControl", attrs={"w:val": "doNotCompress"}))
+
+    compat = sxml.createElement("w:compat")
+    compatSettings = (
+        ("compatibilityMode", "http://schemas.microsoft.com/office/word", "15"),
+        ("overrideTableStyleFontSizeAndJustification", "http://schemas.microsoft.com/office/word", "1"),
+        ("enableOpenTypeFeatures", "http://schemas.microsoft.com/office/word", "1"),
+        ("doNotFlipMirrorIndents", "http://schemas.microsoft.com/office/word", "1"),
+        ("differentiateMultirowTableHeaders", "http://schemas.microsoft.com/office/word", "1")
+    )
+    for name, uri, val in compatSettings:
+        cs_attrs = {"w:name": name, "w:uri": uri, "w:val": val}
+        compat.appendChild(createElementWithProps("w:compatSetting", attrs=cs_attrs))
+    settxml.appendChild(compat)
+
+    # TODO: Actually generate this (what does it do?)
+    rsids = sxml.createElement("w:rsids")
+    rsid_data = (
+        ("w:rsidRoot", "000F58CA"),
+        ("w:rsid", "000F58CA"),
+        ("w:rsid", "00286E1B"),
+        ("w:rsid", "00382026")
+    )
+    for tag, val in rsid_data:
+        rsids.appendChild(createElementWithProps(tag, attrs={"w:val": val}))
+    settxml.appendChild(rsids)
+
+    mathPr = sxml.createElement("w:mathPr")
+    mathpr_data = (
+        ("m:mathFont", "Cambria Math"),
+        ("m:brkBin", "before"),
+        ("m:brkBinSub", "--"),
+        ("m:smallFrac", "0"),
+        ("m:dispDef", None),
+        ("m:lMargin", "0"),
+        ("m:rMargin", "0"),
+        ("m:defJc", "centerGroup"),
+        ("m:wrapIndent", "1440"),
+        ("m:intLim", "subSup"),
+        ("m:naryLim", "undOvr")
+    )
+    for tag, val in mathpr_data:
+        if val is None:
+            attrs = {}
+        else:
+            attrs = {"w:val": val}
+        mathPr.appendChild(createElementWithProps(tag, attrs=attrs))
+    settxml.appendChild(mathPr)
+
+    settxml.appendChild(createElementWithProps("w:themeFontLang", attrs={"w:val":"en-US"}))
+    clrsm_attrs = {
+        "w:accent1": "accent1",
+        "w:accent2": "accent2",
+        "w:accent3": "accent3",
+        "w:accent4": "accent4",
+        "w:accent5": "accent5",
+        "w:accent6": "accent6",
+        "w:bg1": "light1",
+        "w:bg2": "light2",
+        "w:followedHyperlink": "followedHyperlink",
+        "w:hyperlink": "hyperlink",
+        "w:t1": "dark1",
+        "w:t2": "dark2"
+    }
+    settxml.appendChild(createElementWithProps("w:clrSchemeMapping", attrs=clrsm_attrs))
+
+    shapeDefaults = sxml.createElement("w:shapeDefaults")
+    shapeDefaults.appendChild(createElementWithProps("o:shapedefaults", attrs={"spidmax": "1026", "v:ext": "edit"}))
+    shapelayout = createElementWithProps("o:shapelayout", attrs={"v:ext": "edit"})
+    shapelayout.appendChild(createElementWithProps("o:idmap", attrs={"data": "1", "v:ext": "edit"}))
+    shapeDefaults.appendChild(shapelayout)
+    settxml.appendChild(shapeDefaults)
+
+    settxml.appendChild(createElementWithProps("w:decimalSymbol", attrs={"w:val": "."}))
+    settxml.appendChild(createElementWithProps("w:listSeparator", attrs={"w:val": ","}))
+    settxml.appendChild(createElementWithProps("w15:chartTrackingRefBased"))
+    # TODO: Actually generate this
+    settxml.appendChild(createElementWithProps("w15:docId", attrs={"w15:val": "{49DA4288-3311-4E40-A92C-EB09F154294C}"}))
+
+    sxml.appendChild(settxml)
+
+    return sxml
+
 def styles():
     pass
 
@@ -226,7 +329,7 @@ def makeAuxFiles(docx):
 
     #aux["word/theme/theme1.xml"] = theme()
     aux["word/fontTable.xml"] = fontTable()
-    #aux["word/settings.xml"] = settings()
+    aux["word/settings.xml"] = settings()
     #aux["word/styles.xml"] = styles()
     aux["word/webSettings.xml"] = webSettings()
 
