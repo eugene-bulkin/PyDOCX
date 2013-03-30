@@ -1,11 +1,13 @@
 from xml.dom.minidom import *
 from datetime import datetime
 
-def createElementWithText(tagName, text=None):
+def createElementWithProps(tagName, text=None, attrs={}):
     xml = Document()
     el = xml.createElement(tagName)
     if text is not None:
         el.appendChild(xml.createTextNode(text))
+    for attr, value in attrs.items():
+        el.setAttribute(attr, value)
     return el
 
 def contentTypes():
@@ -22,7 +24,6 @@ def contentTypes():
                 ("Override","application/vnd.openxmlformats-package.core-properties+xml", "/docProps/core.xml"),
                 ("Override","application/vnd.openxmlformats-officedocument.extended-properties+xml", "/docProps/app.xml")
     )
-
     for tag, a1, a2 in nodes:
         el = ctxml.createElement(tag)
         el.setAttribute("ContentType", a1) # first attribute is always ContentType
@@ -43,10 +44,8 @@ def relationshipFiles():
             ("rId1", "word/document.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument")
     )
     for i, targ, ty in rels_attrs:
-        el = rels.createElement("Relationship")
-        el.setAttribute("Id", i)
-        el.setAttribute("Target", targ)
-        el.setAttribute("Type", ty)
+        attrs = {"Id": i, "Target": targ, "Type": ty}
+        el = createElementWithProps("Relationship", attrs=attrs)
         rels.documentElement.appendChild(el)
 
     word_rels = parseString('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />')
@@ -58,10 +57,7 @@ def relationshipFiles():
             ("rId4", "fontTable.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable")
     )
     for i, targ, ty in word_rels_attrs:
-        el = word_rels.createElement("Relationship")
-        el.setAttribute("Id", i)
-        el.setAttribute("Target", targ)
-        el.setAttribute("Type", ty)
+        el = createElementWithProps("Relationship", attrs=attrs)
         rels.documentElement.appendChild(el)
 
     return (rels, word_rels)
@@ -69,16 +65,14 @@ def relationshipFiles():
 def coreXML(docx):
     cur_time = datetime.utcnow().strftime("%Y-%m-%dT%XZ")
     coxml = Document()
-    corexml = coxml.createElement("cp:coreProperties")
-    core_attrs = (
-        ("cp", "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"),
-        ("dc", "http://purl.org/dc/elements/1.1/"),
-        ("dcmitype", "http://purl.org/dc/dcmitype/"),
-        ("dcterms", "http://purl.org/dc/terms/"),
-        ("xsi", "http://www.w3.org/2001/XMLSchema-instance")
-    )
-    for name, value in core_attrs:
-        corexml.setAttribute("xmlns:%s" % name, value)
+    core_attrs = {
+        "xmlns:cp": "http://schemas.openxmlformats.org/package/2006/metadata/core-properties",
+        "xmlns:dc": "http://purl.org/dc/elements/1.1/",
+        "xmlns:dcmitype": "http://purl.org/dc/dcmitype/",
+        "xmlns:dcterms": "http://purl.org/dc/terms/",
+        "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+    }
+    corexml = createElementWithProps("cp:coreProperties", attrs=core_attrs)
     # create nodes from properties
     nodes = (
         ("dc:title", "title"),
@@ -90,16 +84,14 @@ def coreXML(docx):
         ("cp:revision", "revision"),
     )
     for name, prop in nodes:
-        el = createElementWithText(name, docx.getProperty(prop))
+        el = createElementWithProps(name, docx.getProperty(prop))
         corexml.appendChild(el)
 
     # created element
-    created = createElementWithText("dcterms:created", cur_time)
-    created.setAttribute("xsi:type","dcterms:W3CDTF")
+    created = createElementWithProps("dcterms:created", cur_time, {"xsi:type":"dcterms:W3CDTF"})
     corexml.appendChild(created)
     # modified element
-    modified = createElementWithText("dcterms:modified", cur_time)
-    modified.setAttribute("xsi:type","dcterms:W3CDTF")
+    modified = createElementWithProps("dcterms:modified", cur_time, {"xsi:type":"dcterms:W3CDTF"})
     corexml.appendChild(modified)
 
     coxml.appendChild(corexml)
@@ -112,7 +104,7 @@ def appXML():
     # TODO: Actually calculate this
     infoNodes = ("TotalTime", "Pages", "Words", "Characters", "Lines", "Paragraphs", "CharactersWithSpaces")
     for name in infoNodes:
-        el = createElementWithText(name, "1")
+        el = createElementWithProps(name, "1")
         appxml.documentElement.appendChild(el)
     # Template information, etc.
     otherNodes = (
@@ -127,30 +119,102 @@ def appXML():
         ("AppVersion", "15.0000")
     )
     for name, value in otherNodes:
-        el = createElementWithText(name, value)
+        el = createElementWithProps(name, value)
         appxml.documentElement.appendChild(el)
     # Nested nodes (HeadingPairs, TitlesOfParts)
     hp = appxml.createElement("HeadingPairs")
-    hpvec = appxml.createElement("vt:vector")
-    hpvec.setAttribute("baseType", "variant")
-    hpvec.setAttribute("size", "2")
+    hpvec = createElementWithProps("vt:vector", attrs={"baseType": "variant", "size": "2"})
     var1 = appxml.createElement("vt:variant")
-    var1.appendChild(createElementWithText("vt:lpstr", "Title"))
+    var1.appendChild(createElementWithProps("vt:lpstr", "Title"))
     hpvec.appendChild(var1)
     var2 = appxml.createElement("vt:variant")
-    var2.appendChild(createElementWithText("vt:i4", "1"))
+    var2.appendChild(createElementWithProps("vt:i4", "1"))
     hpvec.appendChild(var2)
     hp.appendChild(hpvec)
     tp = appxml.createElement("TitlesOfParts")
-    tpvec = appxml.createElement("vt:vector")
-    tpvec.setAttribute("baseType", "lpstr")
-    tpvec.setAttribute("size", "1")
+    tpvec = createElementWithProps("vt:vector", attrs={"baseType": "lpstr", "size": "1"})
     tpvec.appendChild(appxml.createElement("vt:lpstr"))
     tp.appendChild(tpvec)
     appxml.documentElement.appendChild(hp)
     appxml.documentElement.appendChild(tp)
 
     return appxml
+
+def webSettings():
+    wxml = Document()
+    web_attrs = {
+        "mc:Ignorable": "w14 w15",
+        "xmlns:mc": "http://schemas.openxmlformats.org/markup-compatibility/2006",
+        "xmlns:r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+        "xmlns:w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+        "xmlns:w14": "http://schemas.microsoft.com/office/word/2010/wordml",
+        "xmlns:w15": "http://schemas.microsoft.com/office/word/2012/wordml"
+    }
+    webxml = createElementWithProps("w:webSettings", attrs=web_attrs)
+    divs = wxml.createElement("w:divs")
+    div = wxml.createElement("w:div")
+    div.appendChild(createElementWithProps("w:bodyDiv",attrs={"w:val":"1"}))
+    div.appendChild(createElementWithProps("w:marLeft",attrs={"w:val":"0"}))
+    div.appendChild(createElementWithProps("w:marRight",attrs={"w:val":"0"}))
+    div.appendChild(createElementWithProps("w:marTop",attrs={"w:val":"0"}))
+    div.appendChild(createElementWithProps("w:marBottom",attrs={"w:val":"0"}))
+    divBdr = wxml.createElement("w:divBdr")
+    bdrAttrs = {"w:color":"auto", "w:space": "0", "w:sz": "0", "w:val": "none"}
+    divBdr.appendChild(createElementWithProps("w:top",attrs=bdrAttrs))
+    divBdr.appendChild(createElementWithProps("w:left",attrs=bdrAttrs))
+    divBdr.appendChild(createElementWithProps("w:bottom",attrs=bdrAttrs))
+    divBdr.appendChild(createElementWithProps("w:right",attrs=bdrAttrs))
+    div.appendChild(divBdr)
+    divs.appendChild(div)
+    webxml.appendChild(divs)
+    webxml.appendChild(wxml.createElement("w:optimizeForBrowser"))
+    webxml.appendChild(wxml.createElement("w:allowPNG"))
+    wxml.appendChild(webxml)
+
+    return wxml
+
+def styles():
+    pass
+
+def fontTable():
+    fxml = Document()
+    font_attrs = {
+        "mc:Ignorable": "w14 w15",
+        "xmlns:mc": "http://schemas.openxmlformats.org/markup-compatibility/2006",
+        "xmlns:r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+        "xmlns:w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+        "xmlns:w14": "http://schemas.microsoft.com/office/word/2010/wordml",
+        "xmlns:w15": "http://schemas.microsoft.com/office/word/2012/wordml"
+    }
+    fontxml = createElementWithProps("w:fonts", attrs=font_attrs)
+    # TODO: Figure out where this font info comes from for further use
+    font_data = {
+        "Calibri": ("020F0502020204030204", "00", "swiss", "variable", "0000019F", "00000000", "E00002FF", "4000ACFF", "00000001", "00000000"),
+        "Times New Roman": ("02020603050405020304", "00", "roman", "variable", "000001FF", "00000000", "E0002AFF", "C0007843", "00000009", "00000000"),
+        "Calibri Light": ("020F0302020204030204", "00", "swiss", "variable", "0000019F", "00000000", "A00002EF", "4000207B", "00000000", "00000000")
+    }
+    for name, data in font_data.items():
+        font = createElementWithProps("w:font", attrs={"w:name": name})
+        font.appendChild(createElementWithProps("w:panose1", attrs={"w:val": data[0]}))
+        font.appendChild(createElementWithProps("w:charset", attrs={"w:val": data[1]}))
+        font.appendChild(createElementWithProps("w:family", attrs={"w:val": data[2]}))
+        font.appendChild(createElementWithProps("w:pitch", attrs={"w:val": data[3]}))
+        sigdata = {
+            "w:csb0": data[4],
+            "w:csb1": data[5],
+            "w:usb0": data[6],
+            "w:usb1": data[7],
+            "w:usb2": data[8],
+            "w:usb3": data[9]
+        }
+        font.appendChild(createElementWithProps("w:sig", attrs=sigdata))
+        fontxml.appendChild(font)
+    fxml.appendChild(fontxml)
+
+    return fxml
+
+def theme():
+    pass
 
 def makeAuxFiles(docx):
     aux = {}
@@ -159,5 +223,11 @@ def makeAuxFiles(docx):
     aux["_rels/.rels"], aux["word/_rels/document.xml.rels"] = relationshipFiles()
     aux["docProps/core.xml"] = coreXML(docx)
     aux["docProps/app.xml"] = appXML()
+
+    #aux["word/theme/theme1.xml"] = theme()
+    aux["word/fontTable.xml"] = fontTable()
+    #aux["word/settings.xml"] = settings()
+    #aux["word/styles.xml"] = styles()
+    aux["word/webSettings.xml"] = webSettings()
 
     return aux
